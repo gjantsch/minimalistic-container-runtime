@@ -45,7 +45,7 @@ container/
 
 **Why `cmd/container/`?** The re-exec pattern means the binary spawns a copy of itself and passes `"child"` as an argument to take on the child role inside the namespaces. Separating this dispatch into `cmd/container/main.go` keeps the root `main.go` focused on the entry point and makes the two roles (parent supervisor vs. child inside namespaces) easy to find.
 
-**One binary throughout.** Despite the directory structure, `go build` produces a single binary. The `cmd/` and `internal/` split is organisational, not a multiple-binary layout.
+**One binary thOnroughout.** Despite the directory structure, `go build` produces a single binary. The `cmd/` and `internal/` split is organisational, not a multiple-binary layout.
 
 ---
 
@@ -154,31 +154,68 @@ $ make run
 ## Step 3 - Mount Namespace + Rootfs Setup
 
 ### Goal
-Give the container its own filesystem root using a minimal rootfs (busybox static binary) and `pivot_root` or `chroot`. The child process now lives in an isolated directory tree.
+Give the container its own filesystem root so it sees an isolated directory tree instead of the host's `/`. The child process will `chroot` into a minimal directory you build at runtime.
+
+### Where the rootfs comes from
+
+No download needed. The outer Docker image is Alpine, and Alpine ships with busybox — a single static binary at `/bin/busybox` that provides `sh`, `ls`, `cat`, `ps`, and dozens of other tools via symlinks.
+
+The rootfs setup creates a temporary directory (e.g. `/tmp/container-root`) and populates it by copying or bind-mounting just enough from the outer Alpine filesystem for a shell to work:
+
+```
+/tmp/container-root/
+├── bin/
+│   ├── busybox        ← copied from /bin/busybox
+│   ├── sh             ← symlink → busybox
+│   ├── ls             ← symlink → busybox
+│   └── ...            ← other symlinks busybox provides
+├── proc/              ← empty dir, /proc will be mounted here
+└── tmp/               ← empty dir
+```
+
+`internal/rootfs/rootfs.go` is responsible for building this tree and calling `syscall.Chroot` to make it the child's root.
 
 ### What to build
-- `internal/rootfs/rootfs.go`: downloads or unpacks a minimal rootfs (busybox tarball) into a temp directory; calls `syscall.Chroot` or `pivot_root`
-- Add `CLONE_NEWNS` to the clone flags
-- Mount `/proc` inside the new root so tools like `ps` work
+
+**`internal/rootfs/rootfs.go`** — a `Setup(rootfsPath string)` function that:
+1. Creates the directory tree above under `rootfsPath`
+2. Copies `/bin/busybox` into `rootfsPath/bin/busybox`
+3. Creates symlinks for the tools you want (`sh`, `ls`, `ps`, `cat`, `echo`)
+4. Calls `syscall.Chroot(rootfsPath)` followed by `os.Chdir("/")`
+5. Mounts `/proc` inside the new root: `syscall.Mount("proc", "/proc", "proc", 0, "")`
+
+**`internal/namespace/namespace.go`** — add `CLONE_NEWNS` to the clone flags so the child gets its own mount namespace (required before remounting `/proc`):
+
+```go
+Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNS,
+```
+
+**`cmd/container/main.go`** — `runChild()` calls `rootfs.Setup("/tmp/container-root")` before anything else.
+
+### Why chroot and not pivot_root?
+
+`pivot_root(2)` is the production approach — it fully replaces the root mount and makes the old root inaccessible, which is more secure. However it requires the new root to be a mount point itself, adding extra steps. `chroot(2)` is simpler: it just changes what `/` resolves to for the calling process. For a study project, `chroot` is the right starting point. The "Technical knowledge needed" section below explains the difference.
 
 ### Technical knowledge needed
-- Mount namespace: why you need `CLONE_NEWNS` before remounting `/proc`
-- `pivot_root(2)` vs `chroot(2)`: pivot_root is the container-runtime way (fully replaces the root); chroot is simpler but leaves the old root accessible
-- Bind mounts: `syscall.Mount` with `MS_BIND`
-- `/proc` filesystem: why `ps` and `/proc/self` need it mounted
-- Busybox as a minimal rootfs: one binary with symlinks for `sh`, `ls`, `cat`, etc.
+- Mount namespace (`CLONE_NEWNS`): without it, mounting `/proc` inside the child would affect the host's `/proc` too — namespaces make the mount table private
+- `chroot(2)`: changes the root directory for the calling process and all its children; always follow with `os.Chdir("/")` to move the working directory inside the new root
+- `pivot_root(2)` vs `chroot(2)`: pivot_root replaces the root mount entirely (more secure, used by runc); chroot only changes path resolution (simpler, sufficient here)
+- Mounting `/proc`: the proc filesystem is virtual — it must be explicitly mounted even inside a new root; without it, `ps`, `/proc/self/exe`, and PID inspection won't work
+- Busybox symlinks: busybox reads `argv[0]` to decide which tool to run; a symlink named `ls` pointing to `busybox` makes busybox behave as `ls`
 
 ### Expected output
 ```
 $ make run
 [parent] supervisor PID: 4821
-[child]  rootfs: /tmp/container-root-382910
+[child]  rootfs ready: /tmp/container-root
 [child]  hostname: mycontainer  PID: 1
-[child]  $ ls /
-bin  dev  etc  proc  tmp  usr
-[child]  $ ps
+/ # ls /
+bin   proc  tmp
+/ # ps
 PID   USER     COMMAND
 1     root     sh
+/ # exit
+[parent] container exited: exit status 0
 ```
 
 ---
