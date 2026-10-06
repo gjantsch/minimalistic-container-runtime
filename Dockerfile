@@ -23,8 +23,12 @@ RUN GOMAXPROCS=$(nproc) \
     -o container .
 
 # Can't use scratch because we need a minimal base for the binary
-# with a real filesystem
+# with a real filesystem, and busybox-static is needed since
+# the container's isolation will not link dynamic libraries
+# This ensures that the container has a minimal environment to run 
+# shell tools like ls, cat, echo alongside the static binary.
 FROM alpine:3.24
+RUN apk add --no-cache busybox-static
 
 COPY --from=builder /go/src/container /container
 ENTRYPOINT ["/container"]

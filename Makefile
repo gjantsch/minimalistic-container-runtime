@@ -1,14 +1,14 @@
 # container make file
-DOCKER_IMAGE_NAME=container-runtime
+# DOCKER_IMAGE_NAME=container-runtime
 
 build-local:
 	go build -o container .
 
 build: 
-	docker build -t $(DOCKER_IMAGE_NAME) .
+	docker build -t container-runtime .
 
 run:
-	docker run --privileged --rm $(DOCKER_IMAGE_NAME)
+	docker run --privileged --rm container-runtime
 
 clean:
-	docker rmi $(DOCKER_IMAGE_NAME)
+	docker rmi container-runtime

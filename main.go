@@ -10,10 +10,15 @@ import (
 const Version = "V 0.1.0"
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "child" {
+	arg := ""
+	if len(os.Args) > 1 {
+		arg = os.Args[1]
+	}
+	if arg == "child" {
+		fmt.Printf("[runtime] running as child\n")
 		container.RunChild()
 	} else {
-		fmt.Printf("[container-runtime] %s - ready\n", Version)
+		fmt.Printf("[runtime] %s - ready\n", Version)
 		container.RunParent()
 	}
 
