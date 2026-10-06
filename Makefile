@@ -8,7 +8,7 @@ build:
 	docker build -t $(DOCKER_IMAGE_NAME) .
 
 run:
-	docker run --rm $(DOCKER_IMAGE_NAME)
+	docker run --privileged --rm $(DOCKER_IMAGE_NAME)
 
 clean:
-	docker rmi --privileged $(DOCKER_IMAGE_NAME)
+	docker rmi $(DOCKER_IMAGE_NAME)

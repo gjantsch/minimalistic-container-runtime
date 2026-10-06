@@ -12,6 +12,43 @@ Each step produces a **runnable binary** with a concrete expected output, so pro
 
 ---
 
+## Repository Layout
+
+The project grows incrementally — each step adds files to their designated place. Here is the full layout you will end up with by Step 7:
+
+```
+container/
+├── main.go                        # entry point; routes "run" and "child" subcommands
+├── go.mod
+├── Makefile
+├── Dockerfile
+│
+├── cmd/
+│   └── container/
+│       └── main.go                # Step 2: parent/child argument dispatch
+│
+└── internal/
+    ├── namespace/
+    │   └── namespace.go           # Step 2: clone flags, Sethostname
+    ├── rootfs/
+    │   └── rootfs.go              # Step 3: chroot/pivot_root, /proc mount
+    ├── exec/
+    │   └── exec.go                # Step 4: syscall.Exec into the payload command
+    ├── tracer/
+    │   ├── tracer.go              # Step 5: ptrace loop, wait4
+    │   └── decode.go              # Step 6: register inspection, open/read/write decoding
+    └── cgroup/
+        └── cgroup.go              # Step 7 (optional): cgroup v2 resource limits
+```
+
+**Why `internal/`?** Go's `internal` package rule prevents code outside this module from importing these packages. For a study project it serves as a clear signal: everything under `internal/` is implementation detail, not a public API.
+
+**Why `cmd/container/`?** The re-exec pattern means the binary spawns a copy of itself and passes `"child"` as an argument to take on the child role inside the namespaces. Separating this dispatch into `cmd/container/main.go` keeps the root `main.go` focused on the entry point and makes the two roles (parent supervisor vs. child inside namespaces) easy to find.
+
+**One binary throughout.** Despite the directory structure, `go build` produces a single binary. The `cmd/` and `internal/` split is organisational, not a multiple-binary layout.
+
+---
+
 ## Step 1 - Project Scaffold + Dockerfile
 
 ### Goal
@@ -42,16 +79,67 @@ $ make run
 ### Goal
 Launch a child process inside new PID and UTS namespaces so it sees itself as PID 1 and has its own hostname. The parent process acts as the supervisor.
 
+### How the two roles work
+
+There is only one binary. It re-executes itself and uses the first CLI argument to decide which role to play:
+
+```
+$ container run   →  parent role: spawns a copy of itself as "child"
+$ container child →  child role:  runs inside the namespaces
+```
+
+The parent uses `exec.Command("/proc/self/exe", "child")` to spawn itself. `/proc/self/exe` is a Linux symlink that always points to the currently running binary, so no hardcoded path is needed.
+
+`cmd/container/main.go` reads `os.Args[1]` and routes to the correct function:
+
+```go
+switch os.Args[1] {
+case "run":
+    runParent()
+case "child":
+    runChild()
+}
+```
+
 ### What to build
-- `cmd/container/main.go`: entry point that forks itself with `clone` flags
-- `internal/namespace/namespace.go`: wraps `syscall.SysProcAttr` with `CLONE_NEWPID | CLONE_NEWUTS`
-- Child process sets its hostname via `syscall.Sethostname` and prints its PID
+
+**`cmd/container/main.go`** — argument dispatch as shown above, plus `runParent()` and `runChild()` stubs.
+
+**`internal/namespace/namespace.go`** — a `Namespace` function that returns a configured `*exec.Cmd` pointing at `/proc/self/exe child` with the namespace flags set:
+
+```go
+func Namespace() *exec.Cmd {
+    cmd := exec.Command("/proc/self/exe", "child")
+    cmd.Stdin  = os.Stdin
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    cmd.SysProcAttr = &syscall.SysProcAttr{
+        Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS,
+    }
+    return cmd
+}
+```
+
+The parent calls `namespace.Namespace()`, then `cmd.Run()`.
+
+**Inside `runChild()`** — the child is already inside the new namespaces when it starts. It just needs to set its hostname and print its PID:
+
+```go
+func runChild() {
+    syscall.Sethostname([]byte("mycontainer"))
+    fmt.Printf("[child]  hostname: %s\n", getHostname())
+    fmt.Printf("[child]  PID inside namespace: %d\n", os.Getpid())
+}
+```
+
+No `ForcExec` or any other special flag is needed here. The namespace isolation is already in place before `runChild()` runs a single line of code — the kernel applied it during the `clone` call that spawned the child process.
 
 ### Technical knowledge needed
 - Linux namespaces: what PID and UTS namespaces isolate
-- `syscall.SysProcAttr.Cloneflags` in Go - how `exec.Cmd` uses it to pass clone flags to `clone(2)`
-- `os.Getpid()` inside the child returns 1 because it's the first process in the new PID namespace
-- Why the parent's PID and the child's PID differ
+- `syscall.SysProcAttr.Cloneflags` — how `exec.Cmd` passes these to `clone(2)` under the hood
+- `/proc/self/exe` — the Linux symlink to the running binary; used to re-exec without a hardcoded path
+- `os.Getpid()` returns 1 inside the child because it is the first process in the new PID namespace
+- Why the parent sees a different PID for the child than the child sees for itself
 
 ### Expected output
 ```

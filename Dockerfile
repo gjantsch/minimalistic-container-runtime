@@ -8,6 +8,8 @@ ENV GOOS=linux
 WORKDIR /go/src
 
 COPY go.mod ./
+COPY cmd ./cmd
+COPY internal ./internal
 COPY main.go .
 
 # - Use all CPU cores for parallel compilation
