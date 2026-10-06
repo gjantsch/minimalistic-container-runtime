@@ -8,7 +8,7 @@ build:
 	docker build -t container-runtime .
 
 run:
-	docker run --privileged --rm container-runtime
+	docker run --privileged --rm container-runtime ${ARGS}
 
 clean:
 	docker rmi container-runtime
