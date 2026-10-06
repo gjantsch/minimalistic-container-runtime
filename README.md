@@ -8,4 +8,4 @@ One key choice was to use the [syscall](https://pkg.go.dev/syscall) package inst
 - First: use less code possible.
 - Second: create a second challenge with the unix package and understand the differences.
 
-Full definition [here](./docs/CHALLENGE.md)
+Full definition [here](./docs/CHALLENGE.md).
