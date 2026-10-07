@@ -49,9 +49,11 @@ func Setup(rootFSPath string) error {
 	// create symlinks for common binaries to BusyBox after
 	// the container is closed and the root filesystem is set up
 	// this simplifies how references are perceived within the container.
+	// If the container is persisted, os.IsExist is necessary to prevent
+	// crashes due to existing symlinks.
 	for _, bin := range binaries {
 		err := os.Symlink("/bin/busybox", "/bin/"+bin)
-		if err != nil {
+		if err != nil && !os.IsExist(err) {
 			return fmt.Errorf("failed to create symlink for %s: %w", bin, err)
 		}
 	}

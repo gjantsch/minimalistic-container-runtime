@@ -26,15 +26,16 @@ func main() {
 		container.RunChild(args)
 	case "run":
 		fmt.Printf("[runtime] run mode\n")
-		if arg == "" {
+		if len(args) == 0 {
 			fmt.Printf("[runtime] no command provided\n")
 			os.Exit(1)
 		}
-		fmt.Printf("[runtime] command to run: %s\n", arg)
+		fmt.Printf("[runtime] command to run: %s\n", args[0])
+		container.RunParent(args)
 
 	default:
-		fmt.Printf("[runtime] %s - ready\n", Version)
-		container.RunParent(os.Args[1:])
+		fmt.Printf("usage: container run <cmd>\n")
+		os.Exit(1)
 	}
 
 }
