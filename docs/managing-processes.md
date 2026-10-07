@@ -10,25 +10,49 @@ Here we are working exclusively with a dockerized linux application.
 
 ## Table of Contents
 
-1. [The Go `syscall` Package](#1-the-go-syscall-package)
-2. [The `golang.org/x/sys/unix` Package](#2-the-golangorgxsysunix-package)
-3. [The `os/exec` Package](#3-the-osexec-package)
-4. [Linux `ptrace(2)`](#4-linux-ptrace2)
-5. [Linux Namespaces](#5-linux-namespaces)
-6. [Linux `clone(2)`](#6-linux-clone2)
-7. [cgroups v2](#7-cgroups-v2)
+- [The Basics]
+- [The Go `syscall` Package](#the-go-syscall-package)
+- [The `golang.org/x/sys/unix` Package](#the-golangorgxsysunix-package)
+- [The `os/exec` Package](#the-osexec-package)
+- [Linux `ptrace(2)`](#linux-ptrace2)
+- [Linux Namespaces](#linux-namespaces)
+- [Linux `clone(2)`](#linux-clone2)
+- [cgroups v2](#cgroups-v2)
 
 ---
 
-## 1. The Go `syscall` Package
+## The Basics
+
+### Hostname
+
+In this context, hostname is not related to the network machine name or DNS resolution. Instead, it is a label string used by the kernel to identify a **Unix Timeshare System (UTS)**  Namespace. Tools like ps, shell prompt, log formaters will read it making it easyer to identify the application.
+
+Its a large subject, so if you want to know more, check [the Wikipedia Linux namespaces](https://en.wikipedia.org/wiki/Linux_namespaces).
+
+So now is a bit clearer that:
+
+```go
+    cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWNS,
+    }
+```
+
+- CLONE_NEWPI : will provide a new PID for the process
+- CLONE_NEWUTS : will assing a new UTS Namespace label for the process
+
+---
+
+## The Go `syscall` Package
 
 **Official documentation:** https://pkg.go.dev/syscall
 
-The `syscall` package exposes the raw operating system interface - the layer just above the kernel. It is part of the Go standard library but is **frozen**: no new functionality is added. For new systems code, prefer `golang.org/x/sys/unix` (covered next), which is actively maintained and has broader coverage. You will still use `syscall` for the types it defines, particularly `SysProcAttr`, because `os/exec` references those types directly.
+The `syscall` package exposes the raw operating system interface, the layer just above the kernel. It is part of the Go standard library but is **frozen**: no new functionality is added. For new systems code, prefer `golang.org/x/sys/unix` (covered next), which is actively maintained and has broader coverage. You will still use `syscall` for the types it defines, particularly `SysProcAttr`, because `os/exec` references those types directly.
 
 ### `SysProcAttr`
 
 This struct is the bridge between Go's process-spawning APIs and the Linux kernel's process-creation primitives. You attach it to a command before starting it, and the Go runtime passes its fields to `clone(2)` on your behalf.
+
+On Linux, this structure looks like:
 
 ```go
 type SysProcAttr struct {
@@ -79,7 +103,7 @@ syscall.Exec("/bin/sh", []string{"/bin/sh"}, os.Environ())
 
 ---
 
-## 2. The `golang.org/x/sys/unix` Package
+## The `golang.org/x/sys/unix` Package
 
 **Official documentation:** https://pkg.go.dev/golang.org/x/sys/unix
 
@@ -149,7 +173,7 @@ Modern Linux programs use `openat` more often than `open`. Your tracer should in
 
 ---
 
-## 3. The `os/exec` Package
+## The `os/exec` Package
 
 **Official documentation:** https://pkg.go.dev/os/exec
 
@@ -196,7 +220,7 @@ This avoids the need for a separate binary for the child and keeps all the logic
 
 ---
 
-## 4. Linux `ptrace(2)`
+## Linux `ptrace(2)`
 
 **Official man page:** https://man7.org/linux/man-pages/man2/ptrace.2.html
 
@@ -243,7 +267,7 @@ At **exit**: `Rax` holds the return value (file descriptor for `open`, byte coun
 
 ---
 
-## 5. Linux Namespaces
+## Linux Namespaces
 
 **Official man page:** https://man7.org/linux/man-pages/man7/namespaces.7.html
 
@@ -286,7 +310,7 @@ Two processes that share a namespace will have symlinks pointing to the same ino
 
 ---
 
-## 6. Linux `clone(2)`
+# Linux `clone(2)`
 
 **Official man page:** https://man7.org/linux/man-pages/man2/clone.2.html
 
@@ -310,7 +334,7 @@ All `CLONE_NEW*` flags except `CLONE_NEWUSER` require `CAP_SYS_ADMIN`. Inside a 
 
 ---
 
-## 7. cgroups v2
+## cgroups v2
 
 **Official kernel documentation:** https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html
 
