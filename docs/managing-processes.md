@@ -2,6 +2,10 @@
 
 This document introduces the Go packages and Linux kernel interfaces you will use to build the container runtime. Read it before starting the implementation steps. Each section describes what the library does, which parts you will use, and where to find the official documentation.
 
+It is important to notice that if you are programming in other environment than Linux, the packages may have different structures and function signatures than the ones described here. 
+
+Here we are working exclusively with a dockerized linux application.
+
 ---
 
 ## Table of Contents
