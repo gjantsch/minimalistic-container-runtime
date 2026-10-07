@@ -6,8 +6,8 @@ import (
 	"syscall"
 )
 
-func Namespace() *exec.Cmd {
-	cmd := exec.Command("/proc/self/exe", "child")
+func Namespace(args []string) *exec.Cmd {
+	cmd := exec.Command("/proc/self/exe", append([]string{"child"}, args...)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
