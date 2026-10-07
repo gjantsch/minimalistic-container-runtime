@@ -9,3 +9,9 @@ One key choice was to use the [syscall](https://pkg.go.dev/syscall) package inst
 - Second: create a second challenge with the unix package and understand the differences.
 
 Full definition [here](./docs/CHALLENGE.md).
+
+## Building & Running
+
+```sh
+make build && make run ARGS="/bin/ps"
+```
