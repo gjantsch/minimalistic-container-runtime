@@ -17,3 +17,11 @@ Full definition [here](./docs/CHALLENGE.md).
 ```sh
 make build && make run ARGS="/bin/ps"
 ```
+
+## References
+
+[Containers from Scratch by Liz Rice](https://www.youtube.com/watch?v=8fi7uSYlOdc) is an amazing place to start. In 40min you will have an wonderfull class exposing what I did here. Unfortunately I just found this video two weeks before I started to write this project.
+
+[Linux Namespaces by Michael Kerrisk](https://www.youtube.com/watch?v=0kJPa-1FuoI) and [serveral articles about namespaces](https://lwn.net/Kernel/Index/#Namespaces-User_namespaces). Michael Kerrisk is the maintainer of the linux man pages and author of the **The Linux Programming Interface** book.
+
+[How debuggers work by Eli Bendersky](https://eli.thegreenplace.net/2011/01/23/how-debuggers-work-part-1) is also a worth reading series of articles.
