@@ -36,10 +36,10 @@ func Run(cmd *exec.Cmd) error {
 			unix.PtraceGetRegs(pid, &regs)
 
 			if !inSyscall {
-				fmt.Printf("SYSCALL ENTER: %d\n", regs.Orig_rax)
+				fmt.Printf("SYSCALL ENTER: %v\n", regs.Orig_rax)
 				inSyscall = true
 			} else {
-				fmt.Printf("SYSCALL EXIT:  %d\n", regs.Orig_rax)
+				fmt.Printf("SYSCALL EXIT:  %v\n", regs.Orig_rax)
 				inSyscall = false
 			}
 

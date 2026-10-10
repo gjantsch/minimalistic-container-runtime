@@ -17,15 +17,12 @@ func pop(args []string) (string, []string) {
 }
 
 func main() {
-	fmt.Printf("[runtime] starting with args: %v\n", os.Args)
+	fmt.Printf("[runtime] running: %v\n", os.Args)
 	arg, args := pop(os.Args[1:])
-	fmt.Printf("[runtime] remaining arg, args: %s, %v\n", arg, args)
 	switch arg {
 	case "child":
-		fmt.Printf("[runtime] running as child\n")
 		container.RunChild(args)
 	case "run":
-		fmt.Printf("[runtime] run mode\n")
 		if len(args) == 0 {
 			fmt.Printf("[runtime] no command provided\n")
 			os.Exit(1)

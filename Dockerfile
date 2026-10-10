@@ -4,6 +4,10 @@ FROM golang:tip-alpine3.24 AS builder
 ENV CGO_ENABLED=0
 # Ensure binary is compiled for Linux
 ENV GOOS=linux
+# Ensure binary is compiled for AMD64 architecture
+# this is needed otherwise the binary will be compiled
+# for the host architecture
+ENV GOARCH=amd64
 
 WORKDIR /go/src
 
@@ -11,6 +15,9 @@ COPY go.mod ./
 COPY cmd ./cmd
 COPY internal ./internal
 COPY main.go .
+
+RUN go mod tidy
+RUN go mod verify
 
 # - Use all CPU cores for parallel compilation
 # - Strip debug symbols to reduce binary size
