@@ -6,13 +6,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func Run(cmd *exec.Cmd) error {
+func Start(cmd *exec.Cmd) error {
 	cmd.SysProcAttr.Ptrace = true
+	return cmd.Start()
+}
 
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
+func Wait(cmd *exec.Cmd) error {
 	pid := cmd.Process.Pid
 	var ws unix.WaitStatus
 	inSyscall := false
@@ -43,7 +42,16 @@ func Run(cmd *exec.Cmd) error {
 		unix.PtraceSyscall(pid, 0)
 	}
 
-	return cmd.Wait()
+	// Wait4 already reaped the child; cmd.Wait releases internal resources.
+	cmd.Wait() //nolint
+	return nil
+}
+
+func Run(cmd *exec.Cmd) error {
+	if err := Start(cmd); err != nil {
+		return err
+	}
+	return Wait(cmd)
 }
 
 func readString(pid int, addr uintptr) string {
@@ -67,4 +75,3 @@ func readString(pid int, addr uintptr) string {
 	}
 	return string(buf)
 }
-
