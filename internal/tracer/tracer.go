@@ -1,7 +1,6 @@
 package tracer
 
 import (
-	"fmt"
 	"os/exec"
 
 	"golang.org/x/sys/unix"
@@ -16,40 +15,56 @@ func Run(cmd *exec.Cmd) error {
 
 	pid := cmd.Process.Pid
 	var ws unix.WaitStatus
+	inSyscall := false
 
 	for {
-		// block until the child stops for any reason
 		_, err := unix.Wait4(pid, &ws, 0, nil)
 		if err != nil {
 			return err
 		}
 
-		// child exited or was killed — we are done
 		if ws.Exited() || ws.Signaled() {
 			break
 		}
 
-		// syscall stop: SIGTRAP is what ptrace delivers
-		inSyscall := false
 		if ws.StopSignal() == unix.SIGTRAP {
 			var regs unix.PtraceRegs
 			unix.PtraceGetRegs(pid, &regs)
 
 			if !inSyscall {
-				fmt.Printf("SYSCALL ENTER: %v\n", regs.Orig_rax)
+				decodeSyscall(pid, &regs)
 				inSyscall = true
 			} else {
-				fmt.Printf("SYSCALL EXIT:  %v\n", regs.Orig_rax)
+				decodeSyscallExit(pid, &regs)
 				inSyscall = false
 			}
-
-			// TODO Step 6: decode open/read/write
 		}
 
-		// resume the child until the next syscall boundary
 		unix.PtraceSyscall(pid, 0)
 	}
 
 	return cmd.Wait()
-
 }
+
+func readString(pid int, addr uintptr) string {
+	buf := make([]byte, 0, 256)
+	word := make([]byte, 8)
+	for {
+		_, err := unix.PtracePeekData(pid, addr, word)
+		if err != nil {
+			break
+		}
+		for _, b := range word {
+			if b == 0 {
+				return string(buf)
+			}
+			buf = append(buf, b)
+		}
+		addr += 8
+		if len(buf) > 512 {
+			break
+		}
+	}
+	return string(buf)
+}
+
